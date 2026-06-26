@@ -1,0 +1,19 @@
+# IDE
+.idea/
+
+# Node
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
+
+# Logs
+**/*.log
+
+# Environment
+**/.env
+**/.env.local
+
+# OS
+.DS_Store
+Thumbs.db

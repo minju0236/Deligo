@@ -1,0 +1,230 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useAuthStore } from "./store/authStore";
+import { useAccount, useLogin, useRegister, useTransactions, useRecentRecipients } from "./hooks/useBankQueries";
+
+import Logo from "./assets/deligo-logo.png";
+
+function money(value) {
+  return Number(value || 0).toLocaleString("ko-KR") + "원";
+}
+function txLabel(type) {
+  return {
+    DEPOSIT: "주문 매출",
+    WITHDRAW: "정산 신청",
+    TRANSFER_OUT: "환불",
+    TRANSFER_IN: "정산 입금"
+  }[type] || type;
+}
+function errorOf(...items) {
+  return items.find((item) => item?.error)?.error?.message || "";
+}
+
+export default function MobileViewPage() {
+  const [form, setForm] = useState({ username: "user1", password: "1234", name: "모바일사용자" });
+  const [mode, setMode] = useState("login");
+  const auth = useAuthStore();
+  const login = useLogin();
+  const register = useRegister();
+  const account = useAccount();
+  const tx = useTransactions();
+  const recent = useRecentRecipients();
+  const transactions = tx.data || [];
+  const latest = transactions[0];
+  const recentList = useMemo(() => (recent.data || []).slice(0, 4), [recent.data]);
+
+  if (!auth.token) {
+    return (
+      <main className="phone-bg">
+        <section className="phone-card auth-card">
+          <div className="status-bar"><span>9:41</span><span>5G 100%</span></div>
+
+          <img className="logo" src={Logo.src} alt="deligo-logo" />
+
+          <h1>Deligo</h1>
+
+          <p className="lead">사장님을 위한 배달 정산 서비스</p>
+
+          <div className="segmented">
+            <button
+              className={mode === "login" ? "active" : ""}
+              onClick={() => setMode("login")}
+            >
+              로그인
+            </button>
+
+            <button
+              className={mode === "register" ? "active" : ""}
+              onClick={() => setMode("register")}
+            >
+              회원가입
+            </button>
+          </div>
+
+          <div className="input-stack">
+            <label>아이디</label>
+            <input
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })}
+            />
+
+            <label>비밀번호</label>
+            <input
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+
+            {mode === "register" && (
+              <>
+                <label>상호명</label>
+                <input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </>
+            )}
+          </div>
+
+          <button
+            className="primary wide"
+            onClick={() =>
+              mode === "login"
+                ? login.mutate({
+                  username: form.username,
+                  password: form.password,
+                })
+                : register.mutate(form)
+            }
+          >
+            {mode === "login" ? "로그인" : "입점 신청"}
+          </button>
+
+          <p className="error-text">{errorOf(login, register)}</p>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="phone-bg">
+      <section className="phone-frame">
+        <div className="status-bar">
+          <span>9:41</span>
+          <span>5G 100%</span>
+        </div>
+
+        <header className="mobile-header">
+          <div>
+            <p>안녕하세요</p>
+            <h1>{auth.profile?.name || auth.profile?.username} 사장님</h1>
+          </div>
+
+          <button className="icon-button" onClick={auth.logout}>
+            로그아웃
+          </button>
+        </header>
+
+        <section className="balance-card">
+          <div className="card-top">
+            <span>정산 계좌</span>
+            <b>{account.data?.status || "-"}</b>
+          </div>
+
+          <h2>{account.isLoading ? "조회 중" : money(account.data?.balance)}</h2>
+
+          <p>{account.data?.accountNumber || "정산 계좌를 불러오는 중입니다."}</p>
+
+          <div className="quick-actions">
+            <a href="/action">정산 신청</a>
+            <a href="/action">주문 내역</a>
+            <a href="/action">환불 요청</a>
+          </div>
+        </section>
+
+        <section className="notice-card">
+          <div>
+            <strong>실시간 정산 서비스</strong>
+            <p>
+              주문, 정산, 환불 내역이 실시간으로 반영됩니다.
+            </p>
+          </div>
+
+          <span>LIVE</span>
+        </section>
+
+        <section className="section-block">
+          <div className="section-head">
+            <h2>최근 정산 계좌</h2>
+            <a href="/action">관리</a>
+          </div>
+
+          <div className="recipient-row">
+            {(recentList.length
+              ? recentList
+              : [
+                "110-100-000002",
+                "110-100-000003",
+                "110-100-000004",
+              ]).map((item, idx) => (
+                <div className="recipient" key={item + idx}>
+                  <span>{idx + 1}</span>
+                  <p>{item}</p>
+                </div>
+              ))}
+          </div>
+        </section>
+
+        <section className="section-block">
+          <div className="section-head">
+            <h2>주문 · 정산 내역</h2>
+
+            <button
+              onClick={() => {
+                account.refetch();
+                tx.refetch();
+                recent.refetch();
+              }}
+            >
+              새로고침
+            </button>
+          </div>
+
+          {latest && (
+            <div className="latest-card">
+              <span>최근 처리</span>
+              <strong>{txLabel(latest.type)}</strong>
+              <b>{money(latest.amount)}</b>
+              <p>{latest.memo || "메모 없음"}</p>
+            </div>
+          )}
+
+          <div className="tx-list">
+            {transactions.slice(0, 8).map((item) => (
+              <div className="tx-item" key={item.id}>
+                <div>
+                  <strong>{txLabel(item.type)}</strong>
+                  <p>{item.memo || item.createdAt}</p>
+                </div>
+
+                <b>{money(item.amount)}</b>
+              </div>
+            ))}
+
+            {!transactions.length && (
+              <p className="empty">주문 내역이 없습니다.</p>
+            )}
+          </div>
+        </section>
+
+        <nav className="bottom-nav">
+          <span className="active">홈</span>
+          <a href="/action">정산</a>
+          <span>주문</span>
+          <span>마이</span>
+        </nav>
+      </section>
+    </main>
+  );
+}
